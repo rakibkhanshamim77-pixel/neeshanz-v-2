@@ -8,8 +8,10 @@ import SaleBanner from "./components/salebanner/SaleBanner";
 import WhyUs from "./components/whyus/WhyUs";
 import Reviews from "./components/reviews/Reviews";
 import NewsLetter from "./components/news-letter/NewsLetter";
+import { getContent } from "@/db/content.server";
 
-export default function Home() {
+export default async function Home() {
+  const newsletter = await getContent("newsletter");
   return (
     <>
       <main className="pb-28 lg:pb-0">
@@ -30,7 +32,9 @@ export default function Home() {
         {/* Reviews */}
         <Reviews />
         {/* Newsletter */}
-        <NewsLetter />
+        {newsletter.isEnabled && (
+          <NewsLetter title={newsletter.title} description={newsletter.description} />
+        )}
       </main>
       {/* Footer */}
 

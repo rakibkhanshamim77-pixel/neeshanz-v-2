@@ -98,6 +98,8 @@ function prices(p: RawDoc) {
 function isVisible(p: RawDoc): boolean {
   if (p.isActive === false || p.isPublished === false || p.isDeleted === true)
     return false;
+  // Scheduled products stay hidden until their publish time
+  if (p.publishAt && new Date(String(p.publishAt)).getTime() > Date.now()) return false;
   const status = str(p.status)?.toLowerCase();
   return (
     !status || !["draft", "inactive", "archived", "hidden"].includes(status)
@@ -116,18 +118,29 @@ const looksLikeCssColor = (s: string) =>
   /^#([0-9a-f]{3}){1,2}$/i.test(s) || /^[a-z]+$/i.test(s);
 
 function readColors(p: RawDoc): ProductColor[] {
+  // Per-color image overrides stored separately as { [colorName]: string[] }
+  const ci = p.colorImages as Record<string, string[]> | null | undefined;
+
   return arr(p.colors ?? p.colorOptions)
     .map((c): ProductColor | null => {
       if (typeof c === "string" && c.trim()) {
         const name = c.trim();
-        return { name, hex: looksLikeCssColor(name) ? name : "#d4d4d4" };
+        const colorSpecific = ci?.[name]?.filter((u): u is string => typeof u === "string" && !!u);
+        return {
+          name,
+          hex: looksLikeCssColor(name) ? name : "#d4d4d4",
+          ...(colorSpecific?.length ? { images: colorSpecific } : {}),
+        };
       }
       const o = obj(c);
       if (!o) return null;
       const name = str(o.name) ?? str(o.label) ?? str(o.title);
       const hex = str(o.hex) ?? str(o.code) ?? str(o.value) ?? str(o.colorCode);
       if (!name && !hex) return null;
-      const images = imageList(o.images, o.image);
+      // Object-style color: use its own images, fall back to colorImages override, then no override
+      const inlineImages = imageList(o.images, o.image);
+      const colorSpecific: string[] = name ? (ci?.[name]?.filter((u): u is string => typeof u === "string" && !!u) ?? []) : [];
+      const images = inlineImages.length ? inlineImages : colorSpecific;
       return {
         name: name ?? hex!,
         hex: hex ?? (name && looksLikeCssColor(name) ? name : "#d4d4d4"),
@@ -257,6 +270,7 @@ function toProductDetails(p: RawDoc): ProductDetails | null {
     ...readCategory(p),
     images: imageList(p.images, p.image, p.thumbnail, p.featuredImage),
     description: stripHtml(str(p.description) ?? str(p.shortDescription) ?? ""),
+    descriptionHtml: str(p.description) ?? undefined,
     highlights: stringList(p.features, p.highlights, p.keyFeatures, p.details),
     fabric: str(p.fabric) ?? str(p.material),
     care,

@@ -1,10 +1,11 @@
 import { getUser } from "@/app/utils/getUser";
+import { getStoreSettings } from "@/db/settings.server";
 import CheckoutClient from "./_component/CheckoutClient";
 
 export const metadata = { title: "চেকআউট — Neeshanz" };
 
 export default async function CheckoutPage() {
-  const user = await getUser();
+  const [user, { delivery }] = await Promise.all([getUser(), getStoreSettings()]);
 
   const prefill = user
     ? {
@@ -14,5 +15,5 @@ export default async function CheckoutPage() {
       }
     : null;
 
-  return <CheckoutClient prefill={prefill} />;
+  return <CheckoutClient prefill={prefill} delivery={delivery} />;
 }

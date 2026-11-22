@@ -1,22 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import mongoose from "mongoose";
 import dbConnect from "@/db/connect/dbConnect";
 import User from "@/db/models/User";
-import { SESSION_COOKIE, verifySession } from "@/app/utils/session";
+import { getUser } from "@/app/utils/getUser";
 
 type Result = { success: boolean; error: string };
 
-async function getSession() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  return verifySession(token);
-}
 
 export async function updateProfile(formData: FormData): Promise<Result> {
-  const session = await getSession();
+  const session = await getUser();
   if (!session) return { success: false, error: "লগইন করুন" };
 
   const name  = (formData.get("name")  as string)?.trim();
@@ -31,7 +25,7 @@ export async function updateProfile(formData: FormData): Promise<Result> {
     const update = email
       ? { $set: { name, email } }
       : { $set: { name }, $unset: { email: "" } };
-    await User.findByIdAndUpdate(session.userId, update);
+    await User.findByIdAndUpdate(session.id, update);
     revalidatePath("/my-account");
     return { success: true, error: "" };
   } catch (err: unknown) {
@@ -42,7 +36,7 @@ export async function updateProfile(formData: FormData): Promise<Result> {
 }
 
 export async function addAddress(formData: FormData): Promise<Result> {
-  const session = await getSession();
+  const session = await getUser();
   if (!session) return { success: false, error: "লগইন করুন" };
 
   const label     = (formData.get("label")     as string)?.trim() || "home";
@@ -62,7 +56,7 @@ export async function addAddress(formData: FormData): Promise<Result> {
 
   try {
     await dbConnect();
-    const user = await User.findById(session.userId);
+    const user = await User.findById(session.id);
     if (!user) return { success: false, error: "ব্যবহারকারী পাওয়া যায়নি" };
 
     if (isDefault) {
@@ -81,12 +75,12 @@ export async function addAddress(formData: FormData): Promise<Result> {
 }
 
 export async function deleteAddress(id: string): Promise<Result> {
-  const session = await getSession();
+  const session = await getUser();
   if (!session) return { success: false, error: "লগইন করুন" };
 
   try {
     await dbConnect();
-    await User.findByIdAndUpdate(session.userId, {
+    await User.findByIdAndUpdate(session.id, {
       $pull: { addresses: { _id: new mongoose.Types.ObjectId(id) } },
     });
     revalidatePath("/my-account");
@@ -97,12 +91,12 @@ export async function deleteAddress(id: string): Promise<Result> {
 }
 
 export async function setDefaultAddress(id: string): Promise<Result> {
-  const session = await getSession();
+  const session = await getUser();
   if (!session) return { success: false, error: "লগইন করুন" };
 
   try {
     await dbConnect();
-    const user = await User.findById(session.userId);
+    const user = await User.findById(session.id);
     if (!user) return { success: false, error: "ব্যবহারকারী পাওয়া যায়নি" };
 
     user.addresses?.forEach((a) => { a.isDefault = String(a._id) === id; });

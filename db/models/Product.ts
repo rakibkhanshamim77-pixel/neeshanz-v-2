@@ -1,5 +1,12 @@
 import mongoose, { Schema, Model } from "mongoose";
 
+export interface ISizeChartRow {
+  size: string;
+  chest?: number;
+  length?: number;
+  shoulder?: number;
+}
+
 export interface IProduct {
   name: string;
   slug: string;
@@ -14,9 +21,14 @@ export interface IProduct {
   images: string[];
   sizes: string[];
   colors: string[];
+  /** Optional per-color image overrides: { "Black": ["url1", "url2"] } */
+  colorImages?: Record<string, string[]>;
   features: string[];
+  sizeChart: ISizeChartRow[];
   isFeatured: boolean;
   isActive: boolean;
+  /** When set in the future, an active product stays hidden until this time */
+  publishAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -95,8 +107,26 @@ const ProductSchema = new Schema<IProduct>(
       type: [String],
       default: [],
     },
+    colorImages: {
+      type: Schema.Types.Mixed,
+      default: {},
+    },
     features: {
       type: [String],
+      default: [],
+    },
+    sizeChart: {
+      type: [
+        new Schema<ISizeChartRow>(
+          {
+            size: { type: String, required: true, trim: true, uppercase: true },
+            chest: { type: Number, min: 0 },
+            length: { type: Number, min: 0 },
+            shoulder: { type: Number, min: 0 },
+          },
+          { _id: false },
+        ),
+      ],
       default: [],
     },
     isFeatured: {
@@ -107,11 +137,18 @@ const ProductSchema = new Schema<IProduct>(
       type: Boolean,
       default: true,
     },
+    publishAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
   },
 );
+
+ProductSchema.index({ category: 1 });
+ProductSchema.index({ stock: 1 });
 
 // Prevent model recompilation during Next.js hot reload
 const Product: Model<IProduct> =

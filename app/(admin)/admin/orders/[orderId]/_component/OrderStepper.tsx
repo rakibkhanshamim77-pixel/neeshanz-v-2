@@ -1,4 +1,5 @@
 import { PROGRESS_STEPS, STATUS_LABELS } from "./orderConstants";
+import StepperNextAction from "./StepperNextAction";
 
 const STEP_ICONS: Record<string, React.ReactNode> = {
   pending: (
@@ -30,12 +31,20 @@ const STEP_ICONS: Record<string, React.ReactNode> = {
 };
 
 interface Props {
+  orderId: string;
   status: string;
   stepIndex: number;
   isTerminal: boolean;
+  nextStatus: string | null;
 }
 
-export default function OrderStepper({ status, stepIndex, isTerminal }: Props) {
+export default function OrderStepper({
+  orderId,
+  status,
+  stepIndex,
+  isTerminal,
+  nextStatus,
+}: Props) {
   if (isTerminal) {
     return (
       <div className="card p-4 mb-5 bg-red-50 border-red-200">
@@ -128,6 +137,11 @@ export default function OrderStepper({ status, stepIndex, isTerminal }: Props) {
           })}
         </div>
       </div>
+
+      {/* Next step action */}
+      {nextStatus && (
+        <StepperNextAction orderId={orderId} nextStatus={nextStatus} />
+      )}
     </div>
   );
 }

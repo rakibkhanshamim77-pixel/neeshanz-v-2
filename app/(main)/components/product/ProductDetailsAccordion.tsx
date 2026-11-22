@@ -1,6 +1,7 @@
 // Native <details>/<summary> — works without any client JavaScript.
 import ProductSizeChart from "./ProductSizeChart";
 import type { ProductDetails } from "./product.types";
+import { getContent } from "@/db/content.server";
 
 interface ProductDetailsAccordionProps {
   product: ProductDetails;
@@ -17,8 +18,11 @@ function AccordionSummary({ title }: { title: string }) {
   );
 }
 
-export default function ProductDetailsAccordion({ product }: ProductDetailsAccordionProps) {
+export default async function ProductDetailsAccordion({
+  product,
+}: ProductDetailsAccordionProps) {
   const { highlights, fabric, care, sizeChart } = product;
+  const deliveryExchange = await getContent("delivery-exchange");
 
   return (
     <div className="acc mt-6">
@@ -66,10 +70,8 @@ export default function ProductDetailsAccordion({ product }: ProductDetailsAccor
       <details>
         <AccordionSummary title="ডেলিভারি ও এক্সচেঞ্জ" />
         <div className="pb-5 text-[15px] text-mute space-y-2">
-          <p>
-            ঢাকার ভেতরে ৳৬০ (১–২ কার্যদিবস), ঢাকার বাইরে ৳১২০ (২–৪ কার্যদিবস)। ৳১,৫০০ বা তার বেশি অর্ডারে ডেলিভারি ফ্রি।
-          </p>
-          <p>সাইজ না মিললে পণ্য হাতে পাওয়ার ৭ দিনের মধ্যে ফ্রি এক্সচেঞ্জ। পণ্য অব্যবহৃত ও ট্যাগসহ থাকতে হবে।</p>
+          {deliveryExchange.paragraph1 && <p>{deliveryExchange.paragraph1}</p>}
+          {deliveryExchange.paragraph2 && <p>{deliveryExchange.paragraph2}</p>}
         </div>
       </details>
     </div>

@@ -85,7 +85,6 @@ export interface IOrderPayment {
   gateway?: string;
   paidAt?: Date;
   instructions?: string;
-  // Manual payment submission fields
   senderAccount?: string;
   screenshotUrl?: string;
   screenshotDisplayUrl?: string;
@@ -191,6 +190,7 @@ export interface IOrder {
   subtotal: number;
   deliveryCharge: number;
   discount: number;
+  couponCode?: string;
   totalAmount: number;
   paymentAmount: number;
   dueAmount: number;
@@ -234,6 +234,7 @@ const OrderSchema = new Schema<IOrderDocument>(
     subtotal: { type: Number, required: true, min: 0 },
     deliveryCharge: { type: Number, required: true, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
+    couponCode: { type: String, trim: true, uppercase: true },
     totalAmount: { type: Number, required: true, min: 0 },
     paymentAmount: { type: Number, required: true, min: 0 },
     dueAmount: { type: Number, required: true, min: 0 },
@@ -259,7 +260,10 @@ const OrderSchema = new Schema<IOrderDocument>(
   { timestamps: true },
 );
 
-OrderSchema.index({ orderNumber: 1 }, { unique: true });
+// ─── Indexes ──────────────────────────────────────────────────────────────────
+
+// orderNumber index is already created by unique: true above.
+// Do not declare it again.
 OrderSchema.index({ user: 1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ "payment.status": 1 });
@@ -267,7 +271,6 @@ OrderSchema.index({ "customer.phone": 1 });
 OrderSchema.index({ createdAt: -1 });
 
 const Order: Model<IOrderDocument> =
-  mongoose.models.Order ||
-  mongoose.model<IOrderDocument>("Order", OrderSchema);
+  mongoose.models.Order || mongoose.model<IOrderDocument>("Order", OrderSchema);
 
 export default Order;

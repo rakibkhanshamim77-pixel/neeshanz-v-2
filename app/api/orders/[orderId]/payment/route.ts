@@ -135,7 +135,7 @@ export async function POST(
   }
 
   // Validate gateway is configured
-  const paymentMethod = getPaymentMethod(gateway);
+  const paymentMethod = await getPaymentMethod(gateway);
   if (!paymentMethod) {
     return NextResponse.json({ error: "অবৈধ পেমেন্ট মাধ্যম" }, { status: 400 });
   }

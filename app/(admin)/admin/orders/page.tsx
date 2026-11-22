@@ -1,7 +1,8 @@
 import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
-import { getUser } from "@/app/utils/getUser";
+import { guardPage } from "@/app/utils/authz";
 import AdminTopbar from "../../_components/AdminTopbar";
+import AdminBreadcrumb from "../../_components/AdminBreadcrumb";
 import OrdersStats from "./_components/OrdersStats";
 import OrdersFilters from "./_components/OrdersFilters";
 import OrdersTable from "./_components/OrdersTable";
@@ -16,6 +17,7 @@ interface SearchParams {
   status?: string;
   payment?: string;
   page?: string;
+  per?: string;
 }
 
 export default async function AdminOrdersPage({
@@ -23,13 +25,16 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const user = await getUser();
+  const user = await guardPage("order_management");
 
   const q = (searchParams.q ?? "").trim();
   const status = searchParams.status ?? "";
   const payment = searchParams.payment ?? "";
   const page = Math.max(1, parseInt(searchParams.page ?? "1", 10));
-  const skip = (page - 1) * DEFAULT_LIMIT;
+  const per = [10, 15, 25, 50].includes(parseInt(searchParams.per ?? "15", 10))
+    ? parseInt(searchParams.per ?? "15", 10)
+    : DEFAULT_LIMIT;
+  const skip = (page - 1) * per;
 
   await dbConnect();
 
@@ -54,24 +59,26 @@ export default async function AdminOrdersPage({
     total,
     statsTotal,
     statsPendingPayment,
-    statsActive,
+    statsConfirmed,
+    statsProcessing,
+    statsShipped,
     statsDelivered,
     revenueAgg,
   ] = await Promise.all([
     Order.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(DEFAULT_LIMIT)
+      .limit(per)
       .select(
-        "orderNumber createdAt status customer.name customer.phone items.name payment.method payment.status payment.gateway totalAmount"
+        "orderNumber createdAt status customer.name customer.phone customer.district items.name payment.method payment.status payment.gateway payment.transactionId totalAmount",
       )
       .lean(),
     Order.countDocuments(filter),
     Order.countDocuments({}),
     Order.countDocuments({ "payment.status": "pending" }),
-    Order.countDocuments({
-      status: { $in: ["confirmed", "processing", "shipped"] },
-    }),
+    Order.countDocuments({ status: "confirmed" }),
+    Order.countDocuments({ status: "processing" }),
+    Order.countDocuments({ status: "shipped" }),
     Order.countDocuments({ status: "delivered" }),
     Order.aggregate([
       { $match: { status: "delivered" } },
@@ -80,7 +87,6 @@ export default async function AdminOrdersPage({
   ]);
 
   const revenue: number = revenueAgg[0]?.total ?? 0;
-  const totalPages = Math.ceil(total / DEFAULT_LIMIT);
 
   // Serialize orders for client components
   const orderRows = orders.map((o) => ({
@@ -90,6 +96,7 @@ export default async function AdminOrdersPage({
     status: o.status,
     customerName: o.customer.name,
     customerPhone: o.customer.phone,
+    customerDistrict: o.customer.district,
     itemCount: o.items.length,
     itemNames: o.items
       .slice(0, 2)
@@ -99,17 +106,8 @@ export default async function AdminOrdersPage({
     paymentMethod: o.payment.method,
     paymentStatus: o.payment.status,
     paymentGateway: o.payment.gateway,
+    transactionId: o.payment.transactionId,
   }));
-
-  function buildUrl(p: number) {
-    const sp = new URLSearchParams();
-    if (q) sp.set("q", q);
-    if (status) sp.set("status", status);
-    if (payment) sp.set("payment", payment);
-    if (p > 1) sp.set("page", String(p));
-    const qs = sp.toString();
-    return `/admin/orders${qs ? `?${qs}` : ""}`;
-  }
 
   return (
     <div>
@@ -118,14 +116,27 @@ export default async function AdminOrdersPage({
         subtitle="Verify payments, update status and keep customers informed"
         userName={user?.name}
         userRole={user?.role}
+        notificationCount={statsPendingPayment}
+        searchPlaceholder="Search orders, customers, phone or TrxID…"
+        breadcrumb={[
+          { label: "Dashboard", href: "/admin" },
+          { label: "Orders" },
+        ]}
       />
 
       <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1400px]">
-
+        <AdminBreadcrumb
+          items={[
+            { label: "Dashboard", href: "/admin" },
+            { label: "Orders" },
+          ]}
+        />
         <OrdersStats
           total={statsTotal}
           pendingPayment={statsPendingPayment}
-          active={statsActive}
+          confirmed={statsConfirmed}
+          processing={statsProcessing}
+          shipped={statsShipped}
           delivered={statsDelivered}
           revenue={revenue}
         />
@@ -140,11 +151,7 @@ export default async function AdminOrdersPage({
         <OrdersTable orders={orderRows} />
         <OrdersMobileCards orders={orderRows} />
 
-        <OrdersPagination
-          page={page}
-          totalPages={totalPages}
-          buildUrl={buildUrl}
-        />
+        <OrdersPagination total={total} page={page} per={per} />
       </main>
     </div>
   );

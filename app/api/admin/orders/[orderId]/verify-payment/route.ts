@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import mongoose from "mongoose";
-import { SESSION_COOKIE, verifySession } from "@/app/utils/session";
+import { requirePermission } from "@/app/utils/authz";
 import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
-import User from "@/db/models/User";
 
-async function requireAdmin() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const session = verifySession(token);
-  if (!session || session.role !== "admin") return null;
-  return session;
+function forbidden() {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: { orderId: string } },
 ) {
-  const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const actor = await requirePermission("order_management");
+  if (!actor) return forbidden();
 
   if (!mongoose.isValidObjectId(params.orderId)) {
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -38,8 +32,7 @@ export async function POST(
       );
     }
 
-    const admin = await User.findById(session.userId).select("phone name").lean();
-    const adminLabel = admin?.name ?? admin?.phone ?? session.userId;
+    const adminLabel = actor.name ?? actor.phone;
 
     const now = new Date();
     await Order.findByIdAndUpdate(params.orderId, {
@@ -49,7 +42,7 @@ export async function POST(
         "payment.dueAmount": 0,
         "payment.paidAt": now,
         "payment.verifiedAt": now,
-        "payment.verifiedBy": new mongoose.Types.ObjectId(session.userId),
+        "payment.verifiedBy": new mongoose.Types.ObjectId(actor.id),
       },
       $push: {
         activities: {
@@ -57,7 +50,7 @@ export async function POST(
           type: "payment_verified",
           title: "পেমেন্ট যাচাই করা হয়েছে",
           description: `${adminLabel} পেমেন্ট যাচাই করেছেন`,
-          performedBy: new mongoose.Types.ObjectId(session.userId),
+          performedBy: new mongoose.Types.ObjectId(actor.id),
           performedByRole: "admin",
           isInternal: false,
           createdAt: now,

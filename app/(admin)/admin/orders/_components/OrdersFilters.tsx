@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useRef, useTransition } from "react";
 import { STATUS_LABELS, ALL_STATUSES } from "./ordersConstants";
+import Link from "next/link";
 
 export default function OrdersFilters({
   currentStatus,
@@ -56,28 +57,22 @@ export default function OrdersFilters({
         role="group"
         aria-label="Order status filter"
       >
-        <a
+        <Link
           href={buildUrl({ status: "" })}
-          className={`shrink-0 px-4 h-8 rounded-full text-xs font-semibold transition-colors ${
-            !currentStatus
-              ? "bg-ink text-bg"
-              : "bg-soft text-mute hover:text-ink"
-          }`}
+          aria-pressed={!currentStatus ? "true" : "false"}
+          className="chip shrink-0"
         >
           All
-        </a>
+        </Link>
         {ALL_STATUSES.map((s) => (
-          <a
+          <Link
             key={s}
             href={buildUrl({ status: s })}
-            className={`shrink-0 px-4 h-8 rounded-full text-xs font-semibold transition-colors ${
-              currentStatus === s
-                ? "bg-ink text-bg"
-                : "bg-soft text-mute hover:text-ink"
-            }`}
+            aria-pressed={currentStatus === s ? "true" : "false"}
+            className="chip shrink-0"
           >
             {STATUS_LABELS[s]}
-          </a>
+          </Link>
         ))}
       </div>
 

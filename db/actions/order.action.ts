@@ -4,9 +4,14 @@ import mongoose from "mongoose";
 import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
 import Product from "@/db/models/Product";
+import { publishedProductFilter } from "@/db/utils/productVisibility";
 import { getUser } from "@/app/utils/getUser";
 import { deriveGuestToken } from "@/lib/guestToken";
 import { sendOrderConfirmation } from "@/app/lib/sms";
+import { deliveryChargeFor } from "@/db/settings";
+import { getStoreSettings } from "@/db/settings.server";
+import { validateCoupon } from "@/db/actions/validateCoupon";
+import Coupon from "@/db/models/Coupon";
 import {
   getDivisionById,
   getDistrictById,
@@ -37,6 +42,7 @@ export interface PlaceOrderInput {
     quantity: number;
   }[];
   mode: "cart" | "buynow";
+  couponCode?: string;
 }
 
 function generateOrderNumber(): string {
@@ -46,10 +52,6 @@ function generateOrderNumber(): string {
   const d = String(date.getDate()).padStart(2, "0");
   const rand = Math.random().toString(36).substring(2, 8).toUpperCase();
   return `NEE-${y}${m}${d}-${rand}`;
-}
-
-function computeDeliveryCharge(districtId: number): number {
-  return districtId === 1 ? 60 : 120;
 }
 
 export async function placeOrder(
@@ -103,7 +105,7 @@ export async function placeOrder(
 
     // Re-fetch product prices from DB — never trust client prices
     const productIds = input.items.map((i) => new mongoose.Types.ObjectId(i.productId));
-    const products = await Product.find({ _id: { $in: productIds }, isActive: true }).lean();
+    const products = await Product.find({ _id: { $in: productIds }, ...publishedProductFilter() }).lean();
 
     const productMap = new Map(products.map((p) => [String(p._id), p]));
 
@@ -130,13 +132,25 @@ export async function placeOrder(
     }
 
     const subtotal = orderItems.reduce((s, i) => s + i.totalPrice, 0);
-    const deliveryCharge = computeDeliveryCharge(input.customer.districtId);
-    const totalAmount = subtotal + deliveryCharge;
+    const { delivery } = await getStoreSettings();
+    const deliveryCharge = deliveryChargeFor(input.customer.districtId, subtotal, delivery);
+
+    // Validate coupon server-side
+    let discount = 0;
+    let appliedCouponCode: string | undefined;
+    if (input.couponCode?.trim()) {
+      const couponResult = await validateCoupon(input.couponCode.trim(), subtotal);
+      if (!couponResult.ok) return { success: false, error: couponResult.error };
+      discount = couponResult.discountAmount;
+      appliedCouponCode = couponResult.code;
+    }
+
+    const totalAmount = Math.max(0, subtotal + deliveryCharge - discount);
 
     const paymentAmount =
       input.paymentMethod === "cod" ? deliveryCharge : totalAmount;
     const dueAmount =
-      input.paymentMethod === "cod" ? subtotal : 0;
+      input.paymentMethod === "cod" ? subtotal - discount : 0;
 
     // Get authenticated user if any
     const authUser = await getUser();
@@ -168,7 +182,8 @@ export async function placeOrder(
       items: orderItems,
       subtotal,
       deliveryCharge,
-      discount: 0,
+      discount,
+      couponCode: appliedCouponCode,
       totalAmount,
       paymentAmount,
       dueAmount,
@@ -202,6 +217,14 @@ export async function placeOrder(
       await Product.findByIdAndUpdate(item.product, {
         $inc: { stock: -item.quantity },
       });
+    }
+
+    // Increment coupon usedCount
+    if (appliedCouponCode) {
+      await Coupon.findOneAndUpdate(
+        { code: appliedCouponCode },
+        { $inc: { usedCount: 1 } },
+      );
     }
 
     const orderId = String(order._id);

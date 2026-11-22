@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import mongoose from "mongoose";
 import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
-import { getUser } from "@/app/utils/getUser";
+import { guardPage } from "@/app/utils/authz";
 import { getPaymentMethod } from "@/lib/paymentConfig";
 import AdminTopbar from "../../../_components/AdminTopbar";
+import AdminBreadcrumb from "../../../_components/AdminBreadcrumb";
 import { PROGRESS_STEPS, TERMINAL_STATUSES } from "./_component/orderConstants";
 import OrderHeader from "./_component/OrderHeader";
 import OrderStepper from "./_component/OrderStepper";
@@ -23,7 +24,8 @@ export default async function AdminOrderDetailPage({
 }) {
   if (!mongoose.isValidObjectId(params.orderId)) notFound();
 
-  const [user] = await Promise.all([getUser(), dbConnect()]);
+  const user = await guardPage("order_management");
+  await dbConnect();
   const order = await Order.findById(params.orderId).lean();
   if (!order) notFound();
 
@@ -35,7 +37,7 @@ export default async function AdminOrderDetailPage({
   const serialized = JSON.parse(JSON.stringify(order));
 
   const receiverNumber = order.payment.gateway
-    ? (getPaymentMethod(order.payment.gateway)?.number ?? undefined)
+    ? ((await getPaymentMethod(order.payment.gateway))?.number ?? undefined)
     : undefined;
 
   return (
@@ -46,22 +48,42 @@ export default async function AdminOrderDetailPage({
         backHref="/admin/orders"
         userName={user?.name}
         userRole={user?.role}
+        breadcrumb={[
+          { label: "Dashboard", href: "/admin" },
+          { label: "Orders", href: "/admin/orders" },
+          { label: `#${order.orderNumber}` },
+        ]}
       />
 
       <main className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-[1400px]">
+        <AdminBreadcrumb
+          items={[
+            { label: "Dashboard", href: "/admin" },
+            { label: "Orders", href: "/admin/orders" },
+            { label: `#${order.orderNumber}` },
+          ]}
+        />
         <OrderHeader
+          orderId={String(order._id)}
           orderNumber={order.orderNumber}
           createdAt={order.createdAt!}
           customerName={order.customer.name}
           customerPhone={order.customer.phone}
           status={order.status}
           paymentStatus={order.payment.status}
+          totalAmount={order.totalAmount}
         />
 
         <OrderStepper
+          orderId={String(order._id)}
           status={order.status}
           stepIndex={stepIndex}
           isTerminal={isTerminal}
+          nextStatus={
+            !isTerminal && stepIndex < PROGRESS_STEPS.length - 1
+              ? PROGRESS_STEPS[stepIndex + 1]
+              : null
+          }
         />
 
         <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">

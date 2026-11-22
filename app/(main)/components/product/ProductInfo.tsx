@@ -32,7 +32,15 @@ export default function ProductInfo({ product, reviewSummary }: ProductInfoProps
 
       <ProductPrice regularPrice={product.regularPrice} salePrice={product.salePrice} />
 
-      {product.description && <p className="text-mute text-[15px] leading-relaxed mt-5">{product.description}</p>}
+      {product.descriptionHtml ? (
+        <div
+          className="desc-body mt-5"
+          // Safe: description HTML is sanitised by sanitizeRichText before saving
+          dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
+        />
+      ) : product.description ? (
+        <p className="text-mute text-[15px] leading-relaxed mt-5">{product.description}</p>
+      ) : null}
     </>
   );
 }

@@ -1,28 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import mongoose from "mongoose";
-import { SESSION_COOKIE, verifySession } from "@/app/utils/session";
+import { requirePermission } from "@/app/utils/authz";
 import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
 
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
-async function requireAdmin() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const session = verifySession(token);
-  if (!session || session.role !== "admin") return null;
-  return session;
+function forbidden() {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: { orderId: string } },
 ) {
-  const session = await requireAdmin();
-  if (!session) return unauthorized();
+  const actor = await requirePermission("order_management");
+  if (!actor) return forbidden();
 
   if (!mongoose.isValidObjectId(params.orderId))
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -50,8 +41,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { orderId: string } },
 ) {
-  const session = await requireAdmin();
-  if (!session) return unauthorized();
+  const actor = await requirePermission("order_management");
+  if (!actor) return forbidden();
 
   if (!mongoose.isValidObjectId(params.orderId))
     return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -66,7 +57,7 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const $set: Record<string, any> = {};
   const activity: Record<string, unknown> = {
-    performedBy: new mongoose.Types.ObjectId(session.userId),
+    performedBy: new mongoose.Types.ObjectId(actor.id),
     performedByRole: "admin",
     isInternal: false,
     createdAt: new Date(),

@@ -1,7 +1,7 @@
 export const STATUS_LABELS: Record<string, string> = {
-  pending: "Pending",
+  pending: "Payment pending",
   confirmed: "Confirmed",
-  processing: "Processing",
+  processing: "Packing",
   shipped: "Shipped",
   delivered: "Delivered",
   cancelled: "Cancelled",

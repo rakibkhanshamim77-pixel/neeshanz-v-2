@@ -48,7 +48,15 @@ function SubmitButton() {
   );
 }
 
-export default function NewsLetter() {
+interface NewsLetterProps {
+  title?: string;
+  description?: string;
+}
+
+export default function NewsLetter({
+  title = "নতুন কালেকশনের খবর আগে পান",
+  description = "ইমেইল দিন, প্রথম অর্ডারে ১০% ছাড়ের কোড পাবেন।",
+}: NewsLetterProps) {
   const [state, formAction] = useFormState(subscribeNewsletter, initialState);
   const [email, setEmail] = useState("");
   const [showMessage, setShowMessage] = useState(false);
@@ -68,11 +76,9 @@ export default function NewsLetter() {
       <div className="rounded-3xl bg-soft p-8 lg:p-12 grid lg:grid-cols-2 gap-6 items-center">
         <div>
           <h2 className="font-display font-extrabold text-3xl mb-2">
-            নতুন কালেকশনের খবর আগে পান
+            {title}
           </h2>
-          <p className="text-mute">
-            ইমেইল দিন, প্রথম অর্ডারে ১০% ছাড়ের কোড পাবেন।
-          </p>
+          <p className="text-mute">{description}</p>
         </div>
 
         <div>

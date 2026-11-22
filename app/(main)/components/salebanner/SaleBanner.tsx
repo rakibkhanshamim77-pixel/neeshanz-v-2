@@ -1,52 +1,48 @@
-export default function SaleBanner() {
+import { getContent } from "@/db/content.server";
+import SaleBannerCountdown from "./SaleBannerCountdown";
+
+export default async function SaleBanner() {
+  const data = await getContent("sale-banner");
+
+  if (!data.isEnabled) return null;
+
+  const hasDeadline = !!data.deadline;
+
   return (
     <section id="sale" className="max-w-7xl mx-auto px-4 sm:px-6 mt-16 sm:mt-24">
       <div
         className="relative overflow-hidden rounded-2xl sm:rounded-3xl p-6 sm:p-10 lg:p-14 text-white"
-        style={{ background: "linear-gradient(120deg, #5a1730, #9b2c4a)" }}
+        style={{
+          background: `linear-gradient(120deg, ${data.bgFrom}, ${data.bgTo})`,
+        }}
       >
         <div className="relative z-10 grid lg:grid-cols-2 gap-6 lg:gap-8 items-center">
           {/* Content */}
           <div>
             <span className="inline-block px-3 py-1 rounded-full bg-white/15 text-xs sm:text-sm mb-3 sm:mb-4">
-              লিমিটেড অফার
+              {data.badge}
             </span>
 
             <h2 className="font-display font-extrabold text-3xl sm:text-4xl lg:text-5xl leading-tight mb-3 sm:mb-4">
-              সব টি-শার্টে ৩৫% পর্যন্ত ছাড়
+              {data.title}
             </h2>
 
             <p className="text-white/80 text-sm sm:text-base mb-5 sm:mb-6 max-w-md">
-              অফার শেষ হওয়ার আগেই আপনার পছন্দের কালার ও সাইজ বেছে নিন।
+              {data.subtitle}
             </p>
 
             {/* Countdown */}
-            <div className="flex gap-2 sm:gap-3 mb-6 sm:mb-7">
-              {[
-                { value: "02", label: "দিন" },
-                { value: "12", label: "ঘণ্টা" },
-                { value: "45", label: "মিনিট" },
-                { value: "30", label: "সেকেন্ড" },
-              ].map(({ value, label }) => (
-                <div
-                  key={label}
-                  className="bg-white/15 rounded-xl p-2.5 sm:p-3 min-w-[52px] sm:min-w-16 text-center"
-                >
-                  <span className="block text-xl sm:text-2xl font-bold">{value}</span>
-                  <span className="text-[10px] sm:text-xs text-white/70">{label}</span>
-                </div>
-              ))}
-            </div>
+            {hasDeadline && <SaleBannerCountdown deadline={data.deadline} />}
 
             <a
-              href="/shop?onSale=1"
+              href={data.link || "/shop"}
               className="inline-flex h-11 sm:h-12 items-center px-6 sm:px-7 rounded-xl bg-white text-black text-sm sm:text-base font-semibold hover:bg-white/90 transition"
             >
-              অফার দেখুন
+              {data.buttonText}
             </a>
           </div>
 
-          {/* Decorative T-Shirts — hidden on small screens, shown md+ */}
+          {/* Decorative T-Shirts */}
           <div className="hidden sm:block relative h-56 lg:h-72 pointer-events-none">
             <svg
               viewBox="0 0 24 24"
@@ -67,7 +63,7 @@ export default function SaleBanner() {
           </div>
         </div>
 
-        {/* Mobile decorative background tees (subtle, behind content) */}
+        {/* Mobile decorative */}
         <div className="sm:hidden pointer-events-none" aria-hidden="true">
           <svg
             viewBox="0 0 24 24"

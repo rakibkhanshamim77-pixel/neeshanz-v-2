@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -18,9 +22,21 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "/tmp/claude-1000/-home-rakibkhanshamim-Desktop-projects-neeshanz-update/4189df65-ca79-45fb-a2c8-621a4ac929fb/scratchpad/build-check/types/**/*.ts",
+    "/tmp/claude-1000/-home-rakibkhanshamim-Desktop-projects-neeshanz-update/4189df65-ca79-45fb-a2c8-621a4ac929fb/scratchpad/build-check2/types/**/*.ts",
+    "/tmp/claude-1000/-home-rakibkhanshamim-Desktop-projects-neeshanz-update/4189df65-ca79-45fb-a2c8-621a4ac929fb/scratchpad/bc3/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
 }

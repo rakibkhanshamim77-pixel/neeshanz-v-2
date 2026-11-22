@@ -1,6 +1,5 @@
 import { fmt, PAYMENT_LABELS, PAYMENT_COLORS } from "./orderConstants";
 import AdminPaymentActions from "./AdminPaymentActions";
-import AdminOrderActions from "./AdminOrderActions";
 
 interface PaymentInfo {
   method: string;
@@ -134,11 +133,6 @@ export default function OrderPaymentCard({
         </section>
       )}
 
-      {/* Order update */}
-      <section className="card p-5">
-        <h2 className="font-display font-bold text-lg mb-4">Update Order</h2>
-        <AdminOrderActions orderId={orderId} showStatusForm />
-      </section>
     </div>
   );
 }

@@ -39,7 +39,10 @@ export interface ProductDetails {
   eyebrow?: string;
   category?: { name: string; slug: string };
   images: string[];
+  /** Plain text — used for meta description and OG tags */
   description: string;
+  /** Sanitised HTML from the rich-text editor — rendered on the product page */
+  descriptionHtml?: string;
   /** Bullet points under "পণ্যের বিবরণ" */
   highlights: string[];
   fabric?: string;

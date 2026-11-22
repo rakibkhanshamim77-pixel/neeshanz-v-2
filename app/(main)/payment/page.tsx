@@ -5,7 +5,7 @@ import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
 import { SESSION_COOKIE, verifySession } from "@/app/utils/session";
 import { verifyGuestToken } from "@/lib/guestToken";
-import { getPaymentMethods, isPaymentConfigured } from "@/lib/paymentConfig";
+import { getPaymentMethods } from "@/lib/paymentConfig";
 import PaymentClient from "./_component/PaymentClient";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +43,8 @@ export default async function PaymentPage({ searchParams }: Props) {
 
   if (!order) notFound();
 
-  const paymentMethods = getPaymentMethods();
-  const unconfigured = !isPaymentConfigured();
+  const paymentMethods = await getPaymentMethods();
+  const unconfigured = paymentMethods.length === 0;
 
   return (
     <PaymentClient

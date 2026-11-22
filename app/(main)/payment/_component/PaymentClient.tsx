@@ -361,9 +361,9 @@ export default function PaymentClient({
       {/* Setup warning */}
       {unconfigured && (
         <div className="mb-5 rounded-2xl border-2 border-[var(--ink)] p-4 text-sm font-medium">
-          ⚠ সাইট মালিকের জন্য: <code>.env</code> ফাইলে{" "}
-          <code>PAY_BKASH_NUMBER</code>, <code>PAY_NAGAD_NUMBER</code> বা{" "}
-          <code>PAY_ROCKET_NUMBER</code> বসান।
+          ⚠ সাইট মালিকের জন্য: অ্যাডমিন প্যানেলের{" "}
+          <b>Settings → Payment Numbers</b> থেকে bKash / Nagad / Rocket নম্বর যোগ
+          করুন।
         </div>
       )}
 

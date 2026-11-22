@@ -1,4 +1,7 @@
-export type PaymentMethodId = "bkash" | "nagad" | "rocket";
+import { getStoreSettings } from "@/db/settings.server";
+import { WALLET_IDS, WALLET_META, type WalletId } from "@/db/settings";
+
+export type PaymentMethodId = WalletId;
 
 export interface PaymentMethod {
   id: PaymentMethodId;
@@ -9,71 +12,53 @@ export interface PaymentMethod {
   instructions: string[];
 }
 
-export function getPaymentMethods(): PaymentMethod[] {
-  const methods: PaymentMethod[] = [];
+/** Per-wallet app name, used in the Bangla instructions. */
+const APP_NAME: Record<WalletId, string> = {
+  bkash: "bKash",
+  nagad: "নগদ",
+  rocket: "রকেট",
+};
 
-  if (process.env.PAY_BKASH_NUMBER?.trim()) {
-    const number = process.env.PAY_BKASH_NUMBER.trim();
-    methods.push({
-      id: "bkash",
-      name: "bKash",
-      type: (process.env.PAY_BKASH_TYPE as "Personal" | "Merchant") ?? "Personal",
-      number,
-      color: "#E2136E",
-      instructions: [
-        "আপনার bKash অ্যাপ খুলুন",
-        '"Send Money" সিলেক্ট করুন (Payment বা Cash Out নয়)',
-        `নম্বরে পাঠান: ${number}`,
-        "ঠিক পরিমাণ টাকা দিন — কম বা বেশি দিলে অর্ডার কনফার্ম হতে দেরি হবে",
-        "Reference-এ অর্ডার নম্বর লিখুন (ঐচ্ছিক)",
-        "Transaction ID সংরক্ষণ করুন এবং নিচে দিন",
-      ],
-    });
-  }
-
-  if (process.env.PAY_NAGAD_NUMBER?.trim()) {
-    const number = process.env.PAY_NAGAD_NUMBER.trim();
-    methods.push({
-      id: "nagad",
-      name: "Nagad",
-      type: (process.env.PAY_NAGAD_TYPE as "Personal" | "Merchant") ?? "Personal",
-      number,
-      color: "#F7941D",
-      instructions: [
-        "আপনার নগদ অ্যাপ খুলুন",
-        '"Send Money" সিলেক্ট করুন',
-        `নম্বরে পাঠান: ${number}`,
-        "ঠিক পরিমাণ টাকা দিন",
-        "Transaction ID সংরক্ষণ করুন এবং নিচে দিন",
-      ],
-    });
-  }
-
-  if (process.env.PAY_ROCKET_NUMBER?.trim()) {
-    const number = process.env.PAY_ROCKET_NUMBER.trim();
-    methods.push({
-      id: "rocket",
-      name: "Rocket",
-      type: (process.env.PAY_ROCKET_TYPE as "Personal" | "Merchant") ?? "Personal",
-      number,
-      color: "#8B3CA7",
-      instructions: [
-        "আপনার রকেট অ্যাপ খুলুন",
-        '"Send Money" সিলেক্ট করুন',
-        `নম্বরে পাঠান: ${number}`,
-        "ঠিক পরিমাণ টাকা দিন",
-        "Transaction ID সংরক্ষণ করুন এবং নিচে দিন",
-      ],
-    });
-  }
-
-  return methods;
+function instructionsFor(id: WalletId, number: string): string[] {
+  const steps = [
+    `আপনার ${APP_NAME[id]} অ্যাপ খুলুন`,
+    id === "bkash"
+      ? '"Send Money" সিলেক্ট করুন (Payment বা Cash Out নয়)'
+      : '"Send Money" সিলেক্ট করুন',
+    `নম্বরে পাঠান: ${number}`,
+    "ঠিক পরিমাণ টাকা দিন — কম বা বেশি দিলে অর্ডার কনফার্ম হতে দেরি হবে",
+  ];
+  if (id === "bkash") steps.push("Reference-এ অর্ডার নম্বর লিখুন (ঐচ্ছিক)");
+  steps.push("Transaction ID সংরক্ষণ করুন এবং নিচে দিন");
+  return steps;
 }
 
-export function getPaymentMethod(id: string): PaymentMethod | null {
-  return getPaymentMethods().find((m) => m.id === id) ?? null;
+/**
+ * The wallets customers can pay into, from the settings page.
+ *
+ * Settings fall back to the PAY_* env vars while they're unset, so an existing
+ * deployment keeps working until the settings page is saved once.
+ */
+export async function getPaymentMethods(): Promise<PaymentMethod[]> {
+  const { payments } = await getStoreSettings();
+
+  return WALLET_IDS.filter((id) => payments[id].enabled && payments[id].number).map((id) => {
+    const w = payments[id];
+    return {
+      id,
+      name: WALLET_META[id].name,
+      type: w.type,
+      number: w.number,
+      color: WALLET_META[id].color,
+      instructions: instructionsFor(id, w.number),
+    };
+  });
 }
 
-export function isPaymentConfigured(): boolean {
-  return getPaymentMethods().length > 0;
+export async function getPaymentMethod(id: string): Promise<PaymentMethod | null> {
+  return (await getPaymentMethods()).find((m) => m.id === id) ?? null;
+}
+
+export async function isPaymentConfigured(): Promise<boolean> {
+  return (await getPaymentMethods()).length > 0;
 }

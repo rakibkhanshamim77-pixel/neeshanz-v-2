@@ -1,24 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { SESSION_COOKIE, verifySession } from "@/app/utils/session";
+import { requirePermission } from "@/app/utils/authz";
 import dbConnect from "@/db/connect/dbConnect";
 import Order from "@/db/models/Order";
 
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
-async function requireAdmin() {
-  const token = cookies().get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  const session = verifySession(token);
-  if (!session || session.role !== "admin") return null;
-  return session;
+function forbidden() {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 export async function GET(req: NextRequest) {
-  const session = await requireAdmin();
-  if (!session) return unauthorized();
+  const actor = await requirePermission("order_management");
+  if (!actor) return forbidden();
 
   const { searchParams } = req.nextUrl;
   const page = Math.max(1, Number(searchParams.get("page") ?? "1"));

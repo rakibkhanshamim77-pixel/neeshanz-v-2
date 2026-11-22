@@ -2,6 +2,7 @@
 
 import dbConnect from "../connect/dbConnect";
 import Product from "../models/Product";
+import { publishedProductFilter } from "@/db/utils/productVisibility";
 import {
   toBengaliDigits,
   type HeroSlide,
@@ -145,7 +146,7 @@ async function getFeaturedProducts(limit = 5): Promise<HeroSlide[]> {
   try {
     await dbConnect();
 
-    const docs = await Product.find({ isFeatured: true })
+    const docs = await Product.find({ isFeatured: true, ...publishedProductFilter() })
       .sort({ updatedAt: -1, _id: -1 })
       .limit(Math.min(Math.max(1, limit), 10))
       .lean<RawDoc[]>()
@@ -232,7 +233,9 @@ async function getProducts({
   try {
     await dbConnect();
 
-    const filter = featured ? { isFeatured: true } : {};
+    const filter = featured
+      ? { isFeatured: true, ...publishedProductFilter() }
+      : publishedProductFilter();
 
     const docs = await Product.find(filter)
       .sort({ createdAt: -1, _id: -1 })
@@ -325,7 +328,7 @@ async function getShopProducts(params: ShopQueryParams = {}): Promise<ShopResult
   const skip = (page - 1) * SHOP_PER_PAGE;
 
   // Build MongoDB filter
-  const filter: Record<string, unknown> = { isActive: true };
+  const filter: Record<string, unknown> = { ...publishedProductFilter() };
 
   if (params.q?.trim()) {
     filter.name = { $regex: params.q.trim(), $options: "i" };

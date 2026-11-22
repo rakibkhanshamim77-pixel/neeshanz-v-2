@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import dbConnect from "@/db/connect/dbConnect";
 import Product from "@/db/models/Product";
+import { publishedProductFilter } from "@/db/utils/productVisibility";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     // Search active products
     const docs = await Product.find({
-      isActive: true,
+      ...publishedProductFilter(),
       name: {
         $regex: escapeRegex(q),
         $options: "i",
@@ -47,7 +50,6 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Return response
     return NextResponse.json({ products }, { status: 200 });
   } catch (error) {
     console.error("[GET /api/search]", error);

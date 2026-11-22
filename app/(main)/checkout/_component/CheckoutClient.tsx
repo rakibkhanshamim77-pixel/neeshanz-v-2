@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 import { useCart } from "@/lib/CartProvider";
 import { type CartItem, readBuyNow, clearBuyNow } from "@/lib/cart";
 import { placeOrder } from "@/db/actions/order.action";
+import { validateCoupon } from "@/db/actions/validateCoupon";
+import { amountToFreeDelivery, deliveryChargeFor, type DeliverySettings } from "@/db/settings";
 import LocationDropdown, {
   type LocationOption,
 } from "./LocationDropdown";
@@ -24,18 +26,14 @@ interface Prefill {
 
 interface Props {
   prefill: Prefill | null;
-}
-
-function getDeliveryChargeById(districtId: number | null): number {
-  if (!districtId) return 0;
-  return districtId === 1 ? 60 : 120;
+  delivery: DeliverySettings;
 }
 
 function fmt(n: number) {
   return "৳" + n.toLocaleString("bn-BD");
 }
 
-export default function CheckoutClient({ prefill }: Props) {
+export default function CheckoutClient({ prefill, delivery }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isBuyNow = searchParams.get("mode") === "buynow";
@@ -62,6 +60,16 @@ export default function CheckoutClient({ prefill }: Props) {
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Coupon state
+  const [couponInput, setCouponInput] = useState("");
+  const [couponApplied, setCouponApplied] = useState<{
+    code: string;
+    discountAmount: number;
+    label: string;
+  } | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponLoading, setCouponLoading] = useState(false);
 
   // Hydrate items from cart or buyNow
   useEffect(() => {
@@ -115,9 +123,44 @@ export default function CheckoutClient({ prefill }: Props) {
       }))
     : [];
 
-  const deliveryCharge = getDeliveryChargeById(districtId);
   const subtotal = items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
-  const total = subtotal + deliveryCharge;
+  // Same helper placeOrder uses, so this never disagrees with the saved order
+  const deliveryCharge = deliveryChargeFor(districtId, subtotal, delivery);
+  const discount = couponApplied?.discountAmount ?? 0;
+  const total = Math.max(0, subtotal + deliveryCharge - discount);
+  const freeDeliveryGap = amountToFreeDelivery(subtotal, delivery);
+
+  async function applyCoupon() {
+    if (!couponInput.trim()) return;
+    setCouponError("");
+    setCouponLoading(true);
+    try {
+      const res = await validateCoupon(couponInput.trim(), subtotal);
+      if (!res.ok) {
+        setCouponError(res.error);
+        setCouponApplied(null);
+      } else {
+        setCouponApplied({
+          code: res.code,
+          discountAmount: res.discountAmount,
+          label:
+            res.type === "percentage"
+              ? `${res.value}% ছাড়`
+              : `৳${res.value} ছাড়`,
+        });
+        setCouponError("");
+        setCouponInput("");
+      }
+    } finally {
+      setCouponLoading(false);
+    }
+  }
+
+  function removeCoupon() {
+    setCouponApplied(null);
+    setCouponError("");
+    setCouponInput("");
+  }
 
   const updateQty = (item: CartItem, qty: number) => {
     setItems((prev) =>
@@ -187,6 +230,7 @@ export default function CheckoutClient({ prefill }: Props) {
           quantity: i.quantity,
         })),
         mode: isBuyNow ? "buynow" : "cart",
+        couponCode: couponApplied?.code,
       });
 
       if (!result.success) {
@@ -558,22 +602,89 @@ export default function CheckoutClient({ prefill }: Props) {
             </span>
           </div>
 
-          {/* Free shipping progress */}
-          {subtotal < 1500 && (
+          {/* Free shipping progress — only when free delivery is actually switched on */}
+          {freeDeliveryGap !== null && (
             <div className="mb-5 rounded-2xl bg-[var(--soft)] p-3.5">
               <p className="text-sm text-[var(--mute)] mb-2">
-                আর {fmt(1500 - subtotal)} কিনলে ডেলিভারি ফ্রি
+                আর {fmt(freeDeliveryGap)} কিনলে ডেলিভারি ফ্রি
               </p>
               <div className="h-2 rounded-full bg-[var(--line)] overflow-hidden">
                 <div
                   className="h-full bg-[var(--ink)] rounded-full transition-all"
                   style={{
-                    width: `${Math.min(100, (subtotal / 1500) * 100)}%`,
+                    width: `${Math.min(100, (subtotal / delivery.freeDeliveryThreshold) * 100)}%`,
                   }}
                 />
               </div>
             </div>
           )}
+
+          {delivery.freeDeliveryEnabled && freeDeliveryGap === null && subtotal > 0 && (
+            <div className="mb-5 rounded-2xl bg-[var(--soft)] p-3.5">
+              <p className="text-sm font-semibold">ডেলিভারি ফ্রি! 🎉</p>
+            </div>
+          )}
+
+          {/* Coupon input */}
+          <div className="mb-5">
+            {couponApplied ? (
+              <div className="flex items-center justify-between gap-2 rounded-2xl bg-[var(--soft)] border border-[var(--ink)] px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 text-[var(--ink)] shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2.2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="m5 12 5 5L20 7" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-bold font-mono">{couponApplied.code}</p>
+                    <p className="text-xs text-[var(--mute)]">
+                      {couponApplied.label} প্রযোজ্য
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeCoupon}
+                  className="text-xs text-[var(--mute)] hover:text-red-500 transition-colors"
+                >
+                  সরান ✕
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex gap-2">
+                  <input
+                    className="inp flex-1 !rounded-2xl uppercase placeholder:normal-case placeholder:text-[var(--mute)]"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value.toUpperCase());
+                      setCouponError("");
+                    }}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyCoupon())}
+                    placeholder="কুপন কোড"
+                    disabled={couponLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={couponLoading || !couponInput.trim()}
+                    className="shrink-0 h-12 px-4 rounded-2xl bg-[var(--ink)] text-[var(--bg)] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90"
+                  >
+                    {couponLoading ? "…" : "প্রয়োগ"}
+                  </button>
+                </div>
+                {couponError && (
+                  <p className="text-xs text-red-600 mt-1.5 font-medium">
+                    ⚠ {couponError}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Items list */}
           <div className="space-y-4 max-h-72 overflow-y-auto pr-1 mb-4">
@@ -663,10 +774,21 @@ export default function CheckoutClient({ prefill }: Props) {
                 {districtId ? fmt(deliveryCharge) : "—"}
               </dd>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between gap-4 text-green-600">
+                <dt className="font-medium">
+                  কুপন ছাড়{" "}
+                  <span className="font-mono text-xs font-bold">
+                    ({couponApplied?.code})
+                  </span>
+                </dt>
+                <dd className="font-semibold">−{fmt(discount)}</dd>
+              </div>
+            )}
             <div className="flex items-end justify-between gap-4 pt-3 border-t border-[var(--line)]">
               <dt className="font-bold">সর্বমোট</dt>
               <dd className="font-display font-extrabold text-[1.7rem] leading-none">
-                {districtId ? fmt(total) : fmt(subtotal)}
+                {districtId ? fmt(total) : fmt(subtotal - discount)}
               </dd>
             </div>
             {paymentMethod === "cod" && districtId && (
@@ -675,7 +797,7 @@ export default function CheckoutClient({ prefill }: Props) {
                 <b className="text-[var(--ink)]">{fmt(deliveryCharge)}</b>
                 <br />
                 ডেলিভারিতে দিন:{" "}
-                <b className="text-[var(--ink)]">{fmt(subtotal)}</b>
+                <b className="text-[var(--ink)]">{fmt(Math.max(0, subtotal - discount))}</b>
               </div>
             )}
           </dl>
