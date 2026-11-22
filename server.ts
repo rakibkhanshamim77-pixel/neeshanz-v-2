@@ -6,7 +6,7 @@ import mongoose from "mongoose";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
-const port = parseInt(process.env.PORT ?? "3000", 10);
+const port = parseInt(process.env.PORT ?? "4000", 10);
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
@@ -152,12 +152,10 @@ app.prepare().then(async () => {
         io.of("/customer-chat")
           .to(`conv:${conversationId}`)
           .emit("conversation:closed");
-        adminNS
-          .to("admin-room")
-          .emit("conversation:status_changed", {
-            conversationId,
-            status: "closed",
-          });
+        adminNS.to("admin-room").emit("conversation:status_changed", {
+          conversationId,
+          status: "closed",
+        });
       } catch (err) {
         console.error("[socket] admin:close_conversation error:", err);
       }
@@ -165,9 +163,7 @@ app.prepare().then(async () => {
 
     // Admin typing indicator
     socket.on("admin:typing", (conversationId: string) => {
-      io.of("/customer-chat")
-        .to(`conv:${conversationId}`)
-        .emit("admin:typing");
+      io.of("/customer-chat").to(`conv:${conversationId}`).emit("admin:typing");
     });
 
     socket.on("disconnect", () => {
@@ -306,7 +302,9 @@ app.prepare().then(async () => {
 
     // Customer typing indicator
     socket.on("customer:typing", (conversationId: string) => {
-      adminNS.to(`conv:${conversationId}`).emit("customer:typing", conversationId);
+      adminNS
+        .to(`conv:${conversationId}`)
+        .emit("customer:typing", conversationId);
     });
 
     socket.on("disconnect", () => {
